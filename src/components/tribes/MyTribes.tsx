@@ -13,7 +13,12 @@ export function MyTribes() {
   const { data: myTribes, isLoading: myTribesLoading } = useMyTribes(user?.pubkey);
   const { data: publicTribes, isLoading: publicTribesLoading } = usePublicTribes();
 
-  if (myTribesLoading || publicTribesLoading) {
+  // Only show loading and content if user is logged in
+  if (!user) {
+    return null;
+  }
+
+  if (publicTribesLoading || myTribesLoading) {
     return (
       <div className="space-y-8">
         <div className="flex justify-between items-center">

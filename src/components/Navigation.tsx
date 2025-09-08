@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuthor } from "@/hooks/useAuthor";
 import { genUserName } from "@/lib/genUserName";
-import { User, Settings } from "lucide-react";
+import { User, Settings, MessageCircle } from "lucide-react";
 
 export function Navigation() {
   const location = useLocation();
@@ -37,6 +37,16 @@ export function Navigation() {
             >
               Home
             </Link>
+            {user && (
+              <Link
+                to="/messages"
+                className={`text-sm font-medium transition-colors hover:text-primary ${
+                  location.pathname === '/messages' ? 'text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                Messages
+              </Link>
+            )}
           </div>
 
           {/* User Area */}
@@ -75,9 +85,17 @@ export function Navigation() {
                       Profile
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
+                  <DropdownMenuItem asChild>
+                    <Link to="/messages" className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4" />
+                      Messages
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings/profile" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <div className="p-2">
