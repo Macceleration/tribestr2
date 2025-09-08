@@ -37,6 +37,31 @@ An attendance verification event is used to prove physical presence at a tribe e
 }
 ```
 
+### Kind 9022: Join Request Rejection
+
+A join request rejection event is used to track when tribe administrators reject join requests. This prevents duplicate requests and provides a rejection history.
+
+#### Tags
+
+- `h` (required): Group identifier (tribe coordinates: pubkey:d-tag)
+- `p` (required): Pubkey of the rejected user
+- `e` (required): Event ID of the original join request being rejected
+
+#### Example
+
+```json
+{
+  "kind": 9022,
+  "content": "Join request rejected for tribe tribe-id",
+  "tags": [
+    ["h", "tribe-pubkey:tribe-d-tag"],
+    ["p", "rejected-user-pubkey"],
+    ["e", "original-request-event-id"],
+    ["alt", "Join request rejection for tribe membership"]
+  ]
+}
+```
+
 ## Integration with Existing NIPs
 
 This custom kind integrates with the following established NIPs:

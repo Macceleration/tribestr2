@@ -6,6 +6,7 @@ import { TribeEvents } from "./TribeEvents";
 import { TribeMembers } from "./TribeMembers";
 import { TribeAdminPanel } from "./TribeAdminPanel";
 import { CreateEventDialog } from "../events/CreateEventDialog";
+import { LoginArea } from "@/components/auth/LoginArea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,7 +132,24 @@ export function TribeView({ tribeId }: TribeViewProps) {
         </TabsContent>
 
         <TabsContent value="members">
-          <TribeMembers tribe={tribe} />
+          {user ? (
+            <TribeMembers tribe={tribe} />
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-12 px-8 text-center">
+                <div className="max-w-sm mx-auto space-y-6">
+                  <div className="text-4xl">🔒</div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">Login Required</h3>
+                    <p className="text-muted-foreground">
+                      Please log in to view tribe members
+                    </p>
+                  </div>
+                  <LoginArea className="max-w-60" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="badges">

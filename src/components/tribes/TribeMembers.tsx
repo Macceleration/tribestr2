@@ -1,5 +1,7 @@
 import type { NostrEvent } from "@nostrify/nostrify";
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthor } from "@/hooks/useAuthor";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
@@ -9,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { genUserName } from "@/lib/genUserName";
-import { Shield, Crown, User, Calendar, Loader2 } from "lucide-react";
+import { Shield, Crown, User, Calendar, Loader2, UserMinus } from "lucide-react";
 
 interface TribeMembersProps {
   tribe: NostrEvent;
@@ -25,9 +27,11 @@ interface MemberCardProps {
 function MemberCard({ pubkey, role, tribe, canManageMembers }: MemberCardProps) {
   const author = useAuthor(pubkey);
   const { user } = useCurrentUser();
+  const queryClient = useQueryClient();
   const { mutate: createEvent, isPending: isUpdating } = useNostrPublish();
   const { toast } = useToast();
   const [isEventCreator, setIsEventCreator] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const metadata = author.data?.metadata;
   const displayName = metadata?.name || metadata?.display_name || genUserName(pubkey);
@@ -85,6 +89,45 @@ function MemberCard({ pubkey, role, tribe, canManageMembers }: MemberCardProps) 
       });
     } finally {
       setIsEventCreator(false);
+    }
+  };
+
+  const removeMember = async () => {
+    if (!user || !canManageMembers) return;
+
+    setIsRemoving(true);
+    try {
+      // Remove all p tags for this member from the tribe
+      const updatedTags = tribe.tags.filter(tag =>
+        !(tag[0] === 'p' && tag[1] === pubkey)
+      );
+
+      createEvent({
+        kind: 34550,
+        content: tribe.content,
+        tags: updatedTags,
+      });
+
+      toast({
+        title: "Member Removed",
+        description: `${displayName} has been removed from the tribe`,
+      });
+
+      // Invalidate related queries to refresh the UI
+      const tribeId = `${tribe.pubkey}:${tribe.tags.find(([name]) => name === 'd')?.[1]}`;
+      queryClient.invalidateQueries({ queryKey: ['tribe', tribeId] });
+      queryClient.invalidateQueries({ queryKey: ['tribe-member-count', tribeId] });
+      queryClient.invalidateQueries({ queryKey: ['my-tribes'] });
+      queryClient.invalidateQueries({ queryKey: ['public-tribes'] });
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove member. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -151,25 +194,43 @@ function MemberCard({ pubkey, role, tribe, canManageMembers }: MemberCardProps) 
               </Badge>
             )}
 
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>
-                View Profile
+            <div className="flex gap-2 flex-wrap">
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/profile/${pubkey}`}>
+                  View Profile
+                </Link>
               </Button>
 
-              {canManageMembers && role !== 'admin' && (
-                <Button
-                  variant={hasEventCreatorRole ? "destructive" : "default"}
-                  size="sm"
-                  onClick={toggleEventCreator}
-                  disabled={isUpdating || isEventCreator}
-                >
-                  {isUpdating || isEventCreator ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : (
-                    <Calendar className="h-3 w-3 mr-1" />
-                  )}
-                  {hasEventCreatorRole ? 'Remove Events' : 'Allow Events'}
-                </Button>
+              {canManageMembers && role !== 'admin' && pubkey !== tribe.pubkey && (
+                <>
+                  <Button
+                    variant={hasEventCreatorRole ? "destructive" : "default"}
+                    size="sm"
+                    onClick={toggleEventCreator}
+                    disabled={isUpdating || isEventCreator || isRemoving}
+                  >
+                    {isUpdating || isEventCreator ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Calendar className="h-3 w-3 mr-1" />
+                    )}
+                    {hasEventCreatorRole ? 'Remove Events' : 'Allow Events'}
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={removeMember}
+                    disabled={isUpdating || isEventCreator || isRemoving}
+                  >
+                    {isRemoving ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <UserMinus className="h-3 w-3 mr-1" />
+                    )}
+                    Remove
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -189,10 +250,26 @@ export function TribeMembers({ tribe }: TribeMembersProps) {
   );
   const canManageMembers = isCreator || isAdmin;
 
-  // Extract members with their roles
-  const members = tribe.tags
+  // Extract unique members with their roles (handle duplicates by keeping the highest role)
+  const memberMap = new Map<string, { pubkey: string; role?: string }>();
+
+  // Process all p tags and keep the highest role for each unique pubkey
+  tribe.tags
     .filter(([name]) => name === 'p')
-    .map(([, pubkey, , role]) => ({ pubkey, role }));
+    .forEach(([, pubkey, , role]) => {
+      const existing = memberMap.get(pubkey);
+
+      // Role hierarchy: admin > moderator > event_creator > member/undefined
+      const roleHierarchy = { admin: 4, moderator: 3, event_creator: 2, member: 1 };
+      const currentRoleValue = roleHierarchy[role as keyof typeof roleHierarchy] || 1;
+      const existingRoleValue = existing?.role ? (roleHierarchy[existing.role as keyof typeof roleHierarchy] || 1) : 0;
+
+      if (!existing || currentRoleValue > existingRoleValue) {
+        memberMap.set(pubkey, { pubkey, role });
+      }
+    });
+
+  const members = Array.from(memberMap.values());
 
   // Separate by role for better organization
   const admins = members.filter(m => m.role === 'admin');
