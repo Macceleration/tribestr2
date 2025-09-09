@@ -5,12 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ProfileZapDialog } from '@/components/ProfileZapDialog';
 import { DMDialog } from '@/components/DMDialog';
+
 import { ServiceModerationDialog } from './ServiceModerationDialog';
+
 import { useAuthor } from '@/hooks/useAuthor';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserBadgeAwards } from '@/hooks/useBadges';
 import { useCreateServiceMatch } from '@/hooks/useServices';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
+
 import { useTribe } from '@/hooks/useTribes';
 import { extractServiceData, formatDistance, calculateDistance } from '@/hooks/useServices';
 import { genUserName } from '@/lib/genUserName';
@@ -21,8 +24,12 @@ import {
   MessageCircle,
   Zap,
   HandHeart,
+
+  HelpCircle
+
   HelpCircle,
   Shield
+
 } from 'lucide-react';
 import type { NostrEvent } from '@nostrify/nostrify';
 
@@ -30,6 +37,11 @@ interface ServiceCardProps {
   event: NostrEvent;
   userLocation?: { lat: number; lon: number };
   className?: string;
+
+}
+
+export function ServiceCard({ event, userLocation, className }: ServiceCardProps) {
+
   tribeId?: string; // For checking admin status
   showModerationControls?: boolean;
 }
@@ -48,6 +60,7 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
   )?.[3];
   const isAdmin = userRole === 'admin';
   const isModerator = userRole === 'moderator' || isAdmin;
+
 
 
   const serviceData = extractServiceData(event);
@@ -201,6 +214,27 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
             </ProfileZapDialog>
           </div>
 
+
+          {user && user.pubkey !== event.pubkey && (
+            <Button
+              size="sm"
+              onClick={handleMatch}
+              className="flex items-center gap-1"
+            >
+              {isOffer ? (
+                <>
+                  <HelpCircle className="h-4 w-4" />
+                  I need this
+                </>
+              ) : (
+                <>
+                  <HandHeart className="h-4 w-4" />
+                  I can help
+                </>
+              )}
+            </Button>
+          )}
+
           <div className="flex items-center gap-2">
             {/* Admin moderation controls */}
             {(showModerationControls || isModerator) && (
@@ -232,6 +266,7 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
               </Button>
             )}
           </div>
+
         </div>
       </CardContent>
     </Card>

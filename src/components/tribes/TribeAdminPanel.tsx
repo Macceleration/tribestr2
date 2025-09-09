@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import type { NostrEvent } from "@nostrify/nostrify";
 import { useNostr } from '@nostrify/react';
@@ -13,7 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/useToast";
 import { genUserName } from "@/lib/genUserName";
 import { generateTribeServicesQR, generateTribeServicesPoster, downloadQRCode, downloadSVGPoster } from "@/lib/qrGenerator";
+
 import { AdminServicesPanel } from "../services/AdminServicesPanel";
+
 import { Settings, UserCheck, UserX, Users, Loader2, QrCode, Download } from "lucide-react";
 
 interface TribeAdminPanelProps {
@@ -106,281 +109,13 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
   const { data: joinRequests, isLoading: requestsLoading, refetch } = useQuery({
     queryKey: ['join-requests', tribeId],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
-
-      // Get join requests and rejection events
-      const [requests, rejections] = await Promise.all([
-        nostr.query([
-          {
-            kinds: [9021], // Join request (NIP-29)
-            '#h': [tribeId],
-            limit: 100,
-          }
-        ], { signal }),
-        nostr.query([
-          {
-            kinds: [9022], // Join rejection (custom kind)
-            '#h': [tribeId],
-            limit: 100,
-          }
-        ], { signal })
-      ]);
-
-      // Get current tribe members
-      const currentMembers = new Set(
-        tribe.tags
-          .filter(([name]) => name === 'p')
-          .map(([, pubkey]) => pubkey)
-      );
-
-      // Get rejected pubkeys
-      const rejectedPubkeys = new Set(
-        rejections.map(rejection => {
-          const rejectedPubkey = rejection.tags.find(([name]) => name === 'p')?.[1];
-          return rejectedPubkey;
-        }).filter(Boolean)
-      );
-
-      // Filter out requests from users who are already members or have been rejected
-      const filteredRequests = requests.filter(request => {
-        return !currentMembers.has(request.pubkey) && !rejectedPubkeys.has(request.pubkey);
-      });
-
-      // Remove duplicate requests (keep only the latest per user)
-      const uniqueRequests = filteredRequests.reduce((acc, request) => {
-        const existing = acc.find(r => r.pubkey === request.pubkey);
-        if (!existing || request.created_at > existing.created_at) {
-          return [...acc.filter(r => r.pubkey !== request.pubkey), request];
-        }
-        return acc;
-      }, [] as NostrEvent[]);
-
-      return uniqueRequests.sort((a, b) => b.created_at - a.created_at);
-    },
-    enabled: isModerator,
-  });
-
-  const handleApprove = async (request: NostrEvent) => {
-    setProcessingRequest(request.id);
-
-    try {
-      // Check if user is already a member
-      const isAlreadyMember = tribe.tags.some(([name, pubkey]) =>
-        name === 'p' && pubkey === request.pubkey
-      );
-
-      if (isAlreadyMember) {
-        toast({
-          title: "Already a Member",
-          description: "This user is already a member of the tribe",
-          variant: "destructive",
-        });
-        refetch();
-        return;
-      }
-
-      // Add user to tribe by updating tribe definition
-      const currentTags = [...tribe.tags];
-
-      // Add the user as a member (only if not already present)
-      currentTags.push(['p', request.pubkey, '', 'member']);
-
-      createEvent({
-        kind: 34550, // Update tribe definition
-        content: tribe.content,
-        tags: currentTags,
-      });
-
-      toast({
-        title: "✅ Member Approved!",
-        description: "User has been added to the tribe",
-      });
-
-      refetch();
-    } catch (error) {
-      console.error('Error approving member:', error);
-      toast({
-        title: "Error",
-        description: "Failed to approve member",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  const handleReject = async (request: NostrEvent) => {
-    setProcessingRequest(request.id);
-
-    try {
-      // Create a rejection event to track rejected users
-      createEvent({
-        kind: 9022, // Join rejection (custom kind)
-        content: `Join request rejected for tribe ${tribeId}`,
-        tags: [
-          ['h', tribeId], // Group identifier
-          ['p', request.pubkey], // Rejected user
-          ['e', request.id], // Original request event
-        ],
-      });
-
-      toast({
-        title: "❌ Request Rejected",
-        description: "Join request has been rejected and removed",
-      });
-
-      refetch();
-    } catch (error) {
-      console.error('Error rejecting member:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reject request",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  const cleanDuplicateMembers = async () => {
-    setIsCleaningDuplicates(true);
-
-    try {
-      // Create a map to deduplicate members by pubkey, keeping highest role
-      const memberMap = new Map<string, [string, string, string, string]>();
-      const nonMemberTags: Array<[string, string, string?, string?]> = [];
-
-      // Role hierarchy: admin > moderator > event_creator > member/undefined
-      const roleHierarchy = { admin: 4, moderator: 3, event_creator: 2, member: 1 };
-
-      tribe.tags.forEach(tag => {
-        if (tag[0] === 'p') {
-          const [name, pubkey, relay = '', role = ''] = tag;
-          const existing = memberMap.get(pubkey);
-
-          const currentRoleValue = roleHierarchy[role as keyof typeof roleHierarchy] || 1;
-          const existingRoleValue = existing ? (roleHierarchy[existing[3] as keyof typeof roleHierarchy] || 1) : 0;
-
-          if (!existing || currentRoleValue > existingRoleValue) {
-            memberMap.set(pubkey, [name, pubkey, relay, role]);
-          }
-        } else {
-          // Keep all non-member tags as-is
-          nonMemberTags.push(tag as [string, string, string?, string?]);
-        }
-      });
-
-      // Combine deduplicated member tags with other tags
-      const cleanedTags = [
-        ...nonMemberTags,
-        ...Array.from(memberMap.values())
-      ];
-
-      // Check if there were actually duplicates
-      const originalMemberCount = tribe.tags.filter(([name]) => name === 'p').length;
-      const cleanedMemberCount = memberMap.size;
-
-      if (originalMemberCount === cleanedMemberCount) {
-        toast({
-          title: "No Duplicates Found",
-          description: "This tribe doesn't have any duplicate members",
-        });
-        return;
-      }
-
-      createEvent({
-        kind: 34550,
-        content: tribe.content,
-        tags: cleanedTags,
-      });
-
-      toast({
-        title: "✅ Duplicates Cleaned!",
-        description: `Removed ${originalMemberCount - cleanedMemberCount} duplicate member entries`,
-      });
-
-      // Invalidate related queries to refresh the UI
-      queryClient.invalidateQueries({ queryKey: ['tribe', tribeId] });
-      queryClient.invalidateQueries({ queryKey: ['tribe-member-count', tribeId] });
-      queryClient.invalidateQueries({ queryKey: ['my-tribes'] });
-      queryClient.invalidateQueries({ queryKey: ['public-tribes'] });
-    } catch (error) {
-      console.error('Error cleaning duplicates:', error);
-      toast({
-        title: "Error",
-        description: "Failed to clean duplicate members",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCleaningDuplicates(false);
-    }
-  };
-
-  const handleGenerateQR = async () => {
-    setIsGeneratingQR(true);
-    try {
-      const tribeName = tribe.tags.find(([name]) => name === 'name')?.[1] ||
-                       tribe.tags.find(([name]) => name === 'd')?.[1] ||
-                       'Tribe';
-
-      const qrDataUrl = await generateTribeServicesQR(tribeId);
-      downloadQRCode(qrDataUrl, `${tribeName}-services-qr.png`);
-
-      toast({
-        title: "QR Code Generated",
-        description: "Services QR code has been downloaded",
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to generate QR code",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingQR(false);
-    }
-  };
-
-  const handleGeneratePoster = async () => {
-    setIsGeneratingQR(true);
-    try {
-      const tribeName = tribe.tags.find(([name]) => name === 'name')?.[1] ||
-                       tribe.tags.find(([name]) => name === 'd')?.[1] ||
-                       'Tribe';
-
-      const poster = await generateTribeServicesPoster(tribeId, tribeName);
-      downloadSVGPoster(poster, `${tribeName}-services-poster.svg`);
-
-      toast({
-        title: "Poster Generated",
-        description: "Services poster has been downloaded",
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to generate poster",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingQR(false);
-    }
-  };
-
-  if (!isModerator) {
-    return null;
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Tribe Administration
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+      const signal = 
         <Tabs defaultValue="requests">
+
+          <TabsList className="grid w-full grid-cols-3">
+
           <TabsList className="grid w-full grid-cols-4">
+
             <TabsTrigger value="requests" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Requests
@@ -390,6 +125,11 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
                 </Badge>
               )}
             </TabsTrigger>
+
+            <TabsTrigger value="services" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              Services QR
+
             <TabsTrigger value="moderate-services" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Services
@@ -443,12 +183,18 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
               </div>
             )}
           </TabsContent>
-
+          <TabsContent value="services" className="space-y-6">
           <TabsContent value="moderate-services">
             <AdminServicesPanel tribeId={tribeId} />
           </TabsContent>
 
           <TabsContent value="services-qr" className="space-y-6">
+
+            
+            
+            
+            
+            
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Services QR Codes</h3>

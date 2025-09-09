@@ -156,6 +156,7 @@ A service match event records when someone responds to a service request or offe
 - `by` (required): Pubkey of the person creating the match
 - `type` (required): Type of match ("offer_to_request", "request_to_offer", or "admin_suggestion")
 
+
 #### Content
 
 Optional message or context for the match.
@@ -176,6 +177,7 @@ Optional message or context for the match.
   ]
 }
 ```
+
 
 #### Admin Suggestions
 
