@@ -254,6 +254,9 @@ export function TribeServices({ tribeId, className }: TribeServicesProps) {
                   key={service.id}
                   event={service}
                   userLocation={userLocation}
+
+                  tribeId={tribeId}
+
                 />
               ))}
             </div>
@@ -292,6 +295,8 @@ export function TribeServices({ tribeId, className }: TribeServicesProps) {
                   key={service.id}
                   event={service}
                   userLocation={userLocation}
+
+                  tribeId={tribeId}
                 />
               ))}
             </div>

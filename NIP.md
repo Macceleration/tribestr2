@@ -154,7 +154,8 @@ A service match event records when someone responds to a service request or offe
 - `a` (required): Address of the service request being matched
 - `a` (required): Address of the service offer being matched (if applicable)
 - `by` (required): Pubkey of the person creating the match
-- `type` (required): Type of match ("offer_to_request" or "request_to_offer")
+- `type` (required): Type of match ("offer_to_request", "request_to_offer", or "admin_suggestion")
+
 
 #### Content
 
@@ -177,12 +178,75 @@ Optional message or context for the match.
 }
 ```
 
+
+#### Admin Suggestions
+
+Tribe administrators can suggest matches between offers and requests:
+
+```json
+{
+  "kind": 34871,
+  "content": "These services seem like a good match based on location and timing",
+  "tags": [
+    ["d", "admin-match-suggestion-001"],
+    ["a", "30627:req-pubkey:req-elder-van-dyke-2025w41"],
+    ["a", "38857:off-pubkey:offer-terrence-0001"],
+    ["by", "admin-pubkey"],
+    ["type", "admin_suggestion"],
+    ["alt", "Admin suggestion for service match"]
+  ]
+}
+```
+
+## Service Moderation
+
+Tribe administrators can moderate services using NIP-32 labeling:
+
+### Hiding Services
+
+Administrators can hide inappropriate services by publishing label events:
+
+```json
+{
+  "kind": 1985,
+  "content": "Service hidden due to inappropriate content",
+  "tags": [
+    ["L", "moderation"],
+    ["l", "hidden-by-moderator", "moderation"],
+    ["e", "service-event-id"],
+    ["p", "service-author-pubkey"],
+    ["k", "38857"],
+    ["alt", "Moderation action: hide service"]
+  ]
+}
+```
+
+### Removing Services
+
+For stronger moderation actions:
+
+```json
+{
+  "kind": 1985,
+  "content": "Service removed for policy violation",
+  "tags": [
+    ["L", "moderation"],
+    ["l", "removed-by-moderator", "moderation"],
+    ["e", "service-event-id"],
+    ["p", "service-author-pubkey"],
+    ["k", "38857"],
+    ["alt", "Moderation action: remove service"]
+  ]
+}
+```
+
 ## Integration with Existing NIPs
 
 This custom kind integrates with the following established NIPs:
 
+- **NIP-32**: Labeling for service moderation and trust indicators
 - **NIP-52**: Calendar events (kind 31923) for tribe events and RSVP (kind 31925)
-- **NIP-58**: Badge system (kinds 8, 30008, 30009) for attendance badges
+- **NIP-58**: Badge system (kinds 8, 30008, 30009) for attendance badges and trust
 - **NIP-72**: Moderated communities (kind 34550) for tribe definitions
 
 ## Badge Issuance Flow

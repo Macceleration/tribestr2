@@ -85,6 +85,10 @@ export function useTribeServices(tribeId: string, filters: ServiceFilters = {}) 
       const validEvents = filteredEvents.filter(validateServiceEvent);
       console.log('✅ Valid services:', validEvents.length);
 
+
+      // TODO: Filter out moderated services by checking for NIP-32 moderation labels
+      // For now, return all valid events
+
       return validEvents;
     },
   });
@@ -270,7 +274,11 @@ export function useCreateServiceMatch() {
     mutationFn: async (data: {
       requestARef?: string;
       offerARef?: string;
+
       type: 'offer_to_request' | 'request_to_offer';
+
+      type: 'offer_to_request' | 'request_to_offer' | 'admin_suggestion';
+
       message?: string;
     }) => {
       // Generate a unique d tag for the match
@@ -354,7 +362,11 @@ export function validateServiceMatchEvent(event: NostrEvent): boolean {
   const aTags = event.tags.filter(([name]) => name === 'a');
 
   if (!dTag || !byTag || !typeTag) return false;
+
   if (!['offer_to_request', 'request_to_offer'].includes(typeTag)) return false;
+
+  if (!['offer_to_request', 'request_to_offer', 'admin_suggestion'].includes(typeTag)) return false;
+
   if (aTags.length === 0) return false;
 
   return true;
