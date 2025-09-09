@@ -1,8 +1,8 @@
-# Tribe Events Extension
+# Tribe Events and Services Extension
 
 ## Summary
 
-This document defines custom event kinds used by the Tribe app to extend existing Nostr NIPs for community-based event management with attendance verification.
+This document defines custom event kinds used by the Tribe app to extend existing Nostr NIPs for community-based event management with attendance verification and local services marketplace.
 
 ## Custom Event Kinds
 
@@ -58,6 +58,121 @@ A join request rejection event is used to track when tribe administrators reject
     ["p", "rejected-user-pubkey"],
     ["e", "original-request-event-id"],
     ["alt", "Join request rejection for tribe membership"]
+  ]
+}
+```
+
+### Kind 38857: Service Offer
+
+A service offer event represents someone offering to provide a service to their tribe or village community. These are addressable events that can be updated by the author.
+
+#### Tags
+
+- `d` (required): Unique identifier for this service offer
+- `tribe` (required): Tribe slug this service is offered within
+- `village` (optional, repeatable): Village slug(s) where service is available
+- `t` (required): Service category (yardwork, pets, eldercare, errands, oddjobs)
+- `l` (required): Approximate location as "lat,lon" (rounded for privacy)
+- `area` (optional): Human-readable area description
+- `avail` (optional): Availability description (e.g., "weekends,evenings")
+- `rate` (optional): Rate description (e.g., "zap-what-you-want", "$20/hr")
+- `radius` (optional): Service radius (e.g., "0.5mi")
+- `contact` (optional): Alternative contact method (npub)
+- `expires` (optional): Unix timestamp when offer expires
+
+#### Content
+
+Short description of the service being offered (≤140 characters).
+
+#### Example
+
+```json
+{
+  "kind": 38857,
+  "content": "Terrence — mow, rake, snow. Evenings + weekends.",
+  "tags": [
+    ["d", "offer-terrence-0001"],
+    ["tribe", "mack-garden-club"],
+    ["village", "mack-eastside"],
+    ["t", "yardwork"],
+    ["l", "42.3810,-82.9539"],
+    ["area", "Van Dyke & Mack"],
+    ["avail", "weekends,evenings"],
+    ["rate", "zap-what-you-want"],
+    ["radius", "0.7mi"],
+    ["alt", "Service offer for local community help"]
+  ]
+}
+```
+
+### Kind 30627: Service Request
+
+A service request event represents someone requesting help with a service from their tribe or village community. These are addressable events that can be updated by the author.
+
+#### Tags
+
+- `d` (required): Unique identifier for this service request
+- `tribe` (required): Tribe slug where help is needed
+- `village` (optional, repeatable): Village slug(s) where service is needed
+- `t` (required): Service category (yardwork, pets, eldercare, errands, oddjobs)
+- `l` (required): Approximate location as "lat,lon" (rounded for privacy)
+- `area` (optional): Human-readable area description
+- `time` (optional): Preferred time window (e.g., "Tue 10-12")
+- `rate` (optional): Offered compensation
+- `contact` (optional): Alternative contact method (npub)
+- `expires` (optional): Unix timestamp when request expires
+
+#### Content
+
+Short description of the help needed (≤140 characters).
+
+#### Example
+
+```json
+{
+  "kind": 30627,
+  "content": "Weekly elder visit; simple tablet help.",
+  "tags": [
+    ["d", "req-elder-van-dyke-2025w41"],
+    ["tribe", "st-marks-church"],
+    ["village", "mack-eastside"],
+    ["t", "eldercare"],
+    ["l", "42.3812,-82.9546"],
+    ["time", "Tue 10–11am"],
+    ["alt", "Service request for local community help"]
+  ]
+}
+```
+
+### Kind 34871: Service Match
+
+A service match event records when someone responds to a service request or offer, facilitating connections between community members.
+
+#### Tags
+
+- `d` (required): Unique identifier for this match
+- `a` (required): Address of the service request being matched
+- `a` (required): Address of the service offer being matched (if applicable)
+- `by` (required): Pubkey of the person creating the match
+- `type` (required): Type of match ("offer_to_request" or "request_to_offer")
+
+#### Content
+
+Optional message or context for the match.
+
+#### Example
+
+```json
+{
+  "kind": 34871,
+  "content": "I can help with this elder visit request",
+  "tags": [
+    ["d", "match-elder-visit-001"],
+    ["a", "30627:req-pubkey:req-elder-van-dyke-2025w41"],
+    ["a", "38857:off-pubkey:offer-terrence-0001"],
+    ["by", "matcher-pubkey"],
+    ["type", "offer_to_request"],
+    ["alt", "Service match connecting community members"]
   ]
 }
 ```

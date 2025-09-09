@@ -12,7 +12,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/useToast";
 import { genUserName } from "@/lib/genUserName";
-import { Settings, UserCheck, UserX, Users, Loader2 } from "lucide-react";
+import { generateTribeServicesQR, generateTribeServicesPoster, downloadQRCode, downloadSVGPoster } from "@/lib/qrGenerator";
+import { Settings, UserCheck, UserX, Users, Loader2, QrCode, Download } from "lucide-react";
 
 interface TribeAdminPanelProps {
   tribe: NostrEvent;
@@ -90,6 +91,7 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
 
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
 
   // Check if user is admin
   const userRole = tribe.tags.find(([name, pubkey, , role]) =>
@@ -313,6 +315,56 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
     }
   };
 
+  const handleGenerateQR = async () => {
+    setIsGeneratingQR(true);
+    try {
+      const tribeName = tribe.tags.find(([name]) => name === 'name')?.[1] ||
+                       tribe.tags.find(([name]) => name === 'd')?.[1] ||
+                       'Tribe';
+
+      const qrDataUrl = await generateTribeServicesQR(tribeId);
+      downloadQRCode(qrDataUrl, `${tribeName}-services-qr.png`);
+
+      toast({
+        title: "QR Code Generated",
+        description: "Services QR code has been downloaded",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to generate QR code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
+
+  const handleGeneratePoster = async () => {
+    setIsGeneratingQR(true);
+    try {
+      const tribeName = tribe.tags.find(([name]) => name === 'name')?.[1] ||
+                       tribe.tags.find(([name]) => name === 'd')?.[1] ||
+                       'Tribe';
+
+      const poster = await generateTribeServicesPoster(tribeId, tribeName);
+      downloadSVGPoster(poster, `${tribeName}-services-poster.svg`);
+
+      toast({
+        title: "Poster Generated",
+        description: "Services poster has been downloaded",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to generate poster",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
+
   if (!isModerator) {
     return null;
   }
@@ -327,7 +379,7 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="requests">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="requests" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Join Requests
@@ -336,6 +388,10 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
                   {joinRequests.length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="services" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              Services QR
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -381,6 +437,67 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
                 </p>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="services" className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Services QR Codes</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Generate QR codes and posters to promote your tribe's services
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Button
+                    onClick={handleGenerateQR}
+                    disabled={isGeneratingQR}
+                    variant="outline"
+                    className="h-auto p-4 flex flex-col items-center gap-2"
+                  >
+                    {isGeneratingQR ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <QrCode className="h-6 w-6" />
+                    )}
+                    <div className="text-center">
+                      <div className="font-medium">QR Code</div>
+                      <div className="text-xs text-muted-foreground">
+                        Download PNG for digital use
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    onClick={handleGeneratePoster}
+                    disabled={isGeneratingQR}
+                    variant="outline"
+                    className="h-auto p-4 flex flex-col items-center gap-2"
+                  >
+                    {isGeneratingQR ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <Download className="h-6 w-6" />
+                    )}
+                    <div className="text-center">
+                      <div className="font-medium">Poster</div>
+                      <div className="text-xs text-muted-foreground">
+                        Download SVG for printing
+                      </div>
+                    </div>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">How to use:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• QR Code: Share digitally or print for local posting</li>
+                  <li>• Poster: Print and display in community spaces</li>
+                  <li>• Both link directly to your tribe's Services tab</li>
+                  <li>• Helps neighbors discover and offer local services</li>
+                </ul>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
